@@ -7,22 +7,6 @@ public class MainCLI {
 
     static Scanner input = new Scanner(System.in);
 
-    
-    // الفرق
-    static String[] levels = {
-            "First Year",
-            "Second Year",
-            "Third Year",
-            "Fourth Year"
-    };
-
-    // المواد حسب الفرقة
-    static String[][] subjectsByLevel = {
-            { "Math", "Physics", "Python", "IT", "Intro to cyber security", "English" },
-            { "Data Structures", "Linux", "Progress in C++", "Database", "OS", "CCNA" },
-            { "Computer Graphics", "Data Communication", "CCNA II", "Java Programming II" },
-            { "Server Admin", "CCNA IV", "IOT Security", "Big Data", "CCNP", "Machine Learning" }
-    };
 
     // تخزين عدد الـ LO
     static int assignment1LOCount;
@@ -37,8 +21,6 @@ public class MainCLI {
         	System.out.println("1- Add Subject");
         	System.out.println("2- Register Student");
         	System.out.println("3- Enroll Student in Subject");
-        	System.out.println("4- Enter Grades");
-        	System.out.println("5- Show Student Result");
         	System.out.println("0- Exit");
 
             choice = input.nextInt();
@@ -58,10 +40,6 @@ public class MainCLI {
                 break;
 
             case 4:
-                enterGrades();
-                break;
-
-            case 5:
                 showResult();
                 break;
            
@@ -72,36 +50,7 @@ public class MainCLI {
         } while (choice != 0);
     
     }
-
-    // ==============================
-    // Manage Subject Menu
-    // ==============================
-    public static void manageSubjectMenu() {
-
-        int choice;
-
-        do {
-            System.out.println("\n--- Manage Subject ---");
-            System.out.println("1- Add Subject");
-            System.out.println("0- Back");
-            System.out.print("Enter choice: ");
-
-            choice = input.nextInt();
-
-            switch (choice) {
-                case 1:
-                    addSubject();
-                    break;
-                case 0:
-                    break;
-                default:
-                    System.out.println("Invalid Choice!");
-            }
-
-        } while (choice != 0);
-    }
-
-    // ==============================
+   // ==============================
     // Add Subject
     // ==============================
     public static void addSubject() {
@@ -114,54 +63,103 @@ public class MainCLI {
         System.out.print("Level ID: ");
         int level = input.nextInt();
 
+        int departmentId = chooseDepartment();
+
+        input.nextLine();
+
+        System.out.print("Doctor Name: ");
+        String doctorName = input.nextLine();
+
         System.out.print("Assignment 1 LO Count: ");
-        assignment1LOCount = input.nextInt();
+        int a1count = input.nextInt();
 
         System.out.print("Assignment 2 LO Count: ");
-        assignment2LOCount = input.nextInt();
+        int a2count = input.nextInt();
 
         try {
 
             Connection conn = DBConnection.connect();
 
-            if (conn == null) {
-                System.out.println("Database connection failed");
-                return;
+            // -----------------------------
+            // 1 Insert Doctor
+            // -----------------------------
+            String doctorSQL = "INSERT INTO Doctor(name) VALUES(?)";
+
+            PreparedStatement docStmt =
+            conn.prepareStatement(doctorSQL, PreparedStatement.RETURN_GENERATED_KEYS);
+
+            docStmt.setString(1, doctorName);
+            docStmt.executeUpdate();
+
+            ResultSet docKey = docStmt.getGeneratedKeys();
+            int doctorId = 0;
+
+            if (docKey.next()) {
+                doctorId = docKey.getInt(1);
             }
 
-            String sql = "INSERT INTO Subject(name,level_id) VALUES(?,?)";
+            // -----------------------------
+            // 2 Insert Subject
+            // -----------------------------
+            String subjectSQL =
+            "INSERT INTO Subject(name,level_id,department_id,doctor_id) VALUES(?,?,?,?)";
 
-            PreparedStatement stmt = conn.prepareStatement(sql);
+            PreparedStatement subStmt =
+            conn.prepareStatement(subjectSQL, PreparedStatement.RETURN_GENERATED_KEYS);
 
-            stmt.setString(1, subjectName);
-            stmt.setInt(2, level);
+            subStmt.setString(1, subjectName);
+            subStmt.setInt(2, level);
+            subStmt.setInt(3, departmentId);
+            subStmt.setInt(4, doctorId);
 
-            stmt.executeUpdate();
+            subStmt.executeUpdate();
+
+            ResultSet subKey = subStmt.getGeneratedKeys();
+            int subjectId = 0;
+
+            if (subKey.next()) {
+                subjectId = subKey.getInt(1);
+            }
+
+            // -----------------------------
+            // 3 Insert Assignment 1 LOs
+            // -----------------------------
+            String loSQL =
+            		"INSERT INTO LO(subject_id,subject_name,lo_name,assignment_type) VALUES(?,?,?,?)";
+
+            PreparedStatement loStmt = conn.prepareStatement(loSQL);
+
+            for (int i = 1; i <= a1count; i++) {
+
+            	loStmt.setInt(1, subjectId);
+            	loStmt.setString(2, subjectName);
+            	loStmt.setString(3, "LO" + i);
+            	loStmt.setString(4, "Assignment1");
+
+                loStmt.executeUpdate();
+            }
+
+            // -----------------------------
+            // 4 Insert Assignment 2 LOs
+            // -----------------------------
+            for (int i = 1; i <= a2count; i++) {
+
+            	loStmt.setInt(1, subjectId);
+            	loStmt.setString(2, subjectName);
+            	loStmt.setString(3, "LO" + i);
+            	loStmt.setString(4, "Assignment2");
+
+            	loStmt.executeUpdate();
+            }
 
             conn.close();
 
             System.out.println("\nSubject Added Successfully ✅");
-
-            System.out.println("\nAssignment Structure:");
-            System.out.println("Assignment 1 LO Count: " + assignment1LOCount);
-            System.out.println("Assignment 2 LO Count: " + assignment2LOCount);
+            System.out.println("LOs Created Successfully");
 
         } catch (Exception e) {
 
             System.out.println(e.getMessage());
-        }
-
-        int option;
-
-        System.out.println("\n==========================");
-        System.out.println("1- Enter Assignment Grades");
-        System.out.println("2- Back to Main Menu");
-        System.out.print("Enter choice: ");
-
-        option = input.nextInt();
-
-        if (option == 1) {
-            DegreesAssignments();
         }
     }
     // ==============================
@@ -211,27 +209,112 @@ public class MainCLI {
   
     public static void enrollStudent() {
 
-        System.out.print("Student ID: ");
-        int studentId = input.nextInt();
+    	System.out.print("Enter Student ID: ");
+    	int studentId = input.nextInt();
 
-        System.out.print("Subject ID: ");
-        int subjectId = input.nextInt();
+    	System.out.print("Enter Subject ID: ");
+    	int subjectId = input.nextInt();
 
-        try {
+    	System.out.print("Enter level: ");
+    	int level = input.nextInt();
+
+    	input.nextLine(); // تنظيف السطر
+
+    	System.out.print("Enter Semester (Semester 1 / Semester 2): ");
+    	String semester = input.nextLine();
+       
+    	try {
 
             Connection conn = DBConnection.connect();
-
-            String sql = "INSERT INTO Enrollment(student_id,subject_id) VALUES(?,?)";
+            String sql = "INSERT INTO Enrollment (student_id, subject_id, level_id, semester) VALUES (?, ?, ?, ?)";
 
             PreparedStatement stmt = conn.prepareStatement(sql);
 
             stmt.setInt(1, studentId);
             stmt.setInt(2, subjectId);
+            stmt.setInt(3, level);
+            stmt.setString(4, semester);
 
             stmt.executeUpdate();
 
-            System.out.println("Student Enrolled Successfully ✅");
+            System.out.println("Student registered successfully");
+ 
+          
+         // الحصول على enrollment_id
+            String getEnroll = "SELECT enrollment_id FROM Enrollment WHERE student_id=? AND subject_id=? ORDER BY enrollment_id DESC LIMIT 1";
 
+            PreparedStatement getStmt = conn.prepareStatement(getEnroll);
+
+            getStmt.setInt(1, studentId);
+            getStmt.setInt(2, subjectId);
+
+            ResultSet rsEnroll = getStmt.executeQuery();
+
+            int enrollmentId = 0;
+
+            if(rsEnroll.next()){
+                enrollmentId = rsEnroll.getInt("enrollment_id");
+            }
+
+            // -----------------------------
+            // قراءة عدد LO من جدول LO
+            // -----------------------------
+            String loQuery = "SELECT assignment_type FROM LO WHERE subject_id=?";
+
+            PreparedStatement loStmt = conn.prepareStatement(loQuery);
+
+            loStmt.setInt(1, subjectId);
+
+            ResultSet loRS = loStmt.executeQuery();
+
+            int assignment1Total = 0;
+            int assignment2Total = 0;
+
+            System.out.println("\nEnter Grades For LOs");
+
+            while(loRS.next()){
+
+                String type = loRS.getString("assignment_type");
+
+                System.out.print(type + " LO Grade (P/M/D): ");
+                String grade = input.next().toUpperCase();
+
+                int degree = 0;
+
+                switch(grade){
+                    case "P": degree = 9; break;
+                    case "M": degree = 12; break;
+                    case "D": degree = 15; break;
+                    default:
+                        System.out.println("Invalid grade");
+                        continue;
+                }
+
+                if(type.equals("Assignment1")){
+                    assignment1Total += degree;
+                }
+                else if(type.equals("Assignment2")){
+                    assignment2Total += degree;
+                }
+            }
+
+            // -----------------------------
+            // حفظ الدرجات في جدول Grades
+            // -----------------------------
+            String insertGrade =
+            "INSERT INTO Grade(enrollment_id, assignment1, assignment2) VALUES(?,?,?)";
+
+            PreparedStatement gradeStmt = conn.prepareStatement(insertGrade);
+
+            gradeStmt.setInt(1, enrollmentId);
+            gradeStmt.setInt(2, assignment1Total);
+            gradeStmt.setInt(3, assignment2Total);
+
+            gradeStmt.executeUpdate();
+
+            System.out.println("Grades Saved Successfully");
+         conn.close();
+            
         } catch (Exception e) {
 
             System.out.println(e.getMessage());
@@ -373,7 +456,45 @@ public class MainCLI {
         System.out.println("Subject Total: " + subjectTotal);
         System.out.println("==============================");
     }
+    public static int chooseDepartment() {
 
+        int deptId = 0;
+
+        try {
+
+            Connection conn = DBConnection.connect();
+
+            String sql = "SELECT department_id, department_name FROM Department";
+
+            PreparedStatement stmt = conn.prepareStatement(sql);
+
+            ResultSet rs = stmt.executeQuery();
+
+            System.out.println("\nChoose Department:");
+
+            while (rs.next()) {
+
+                int id = rs.getInt("department_id");
+                String name = rs.getString("department_name");
+
+                System.out.println(id + " - " + name);
+            }
+
+            System.out.print("Enter Department ID: ");
+            deptId = input.nextInt();
+
+            conn.close();
+
+        } catch (Exception e) {
+
+            System.out.println(e.getMessage());
+        }
+
+        return deptId;
+    }
+    
+    
+    
     static int getLOGrade(String loName) {
 
         System.out.print(loName + " Grade (P / M / D): ");
